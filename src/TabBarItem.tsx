@@ -249,7 +249,8 @@ export default class TabBarItem<T extends Route> extends React.Component<
           style={[
             styles.item,
             itemStyle,
-            isActiveStyle ? activeTabStyle : tabStyle,
+            tabStyle,
+            isActiveStyle ? activeTabStyle : {},
           ]}
         >
           {icon}
