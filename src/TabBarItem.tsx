@@ -39,6 +39,7 @@ type Props<T extends Route> = {
   onLongPress: () => void;
   tabWidth: number;
   labelStyle?: StyleProp<TextStyle>;
+  activeTabStyle?: StyleProp<ViewStyle>;
   style: StyleProp<ViewStyle>;
 };
 
@@ -94,6 +95,7 @@ export default class TabBarItem<T extends Route> extends React.Component<
       pressColor,
       pressOpacity,
       labelStyle,
+      activeTabStyle = {},
       style,
       tabWidth,
       onPress,
@@ -204,8 +206,10 @@ export default class TabBarItem<T extends Route> extends React.Component<
     const tabContainerStyle: ViewStyle = {};
     const itemStyle = isWidthSet ? { width: tabWidth } : null;
 
+    const isActiveStyle = isFocused && activeTabStyle != null;
+
     if (tabStyle && typeof tabStyle.flex === 'number') {
-      tabContainerStyle.flex = tabStyle.flex;
+      tabContainerStyle.flex = isActiveStyle ? activeTabStyle.flex : tabStyle.flex;
     } else if (!isWidthSet) {
       tabContainerStyle.flex = 1;
     }
@@ -238,7 +242,7 @@ export default class TabBarItem<T extends Route> extends React.Component<
         onLongPress={onLongPress}
         style={tabContainerStyle}
       >
-        <View pointerEvents="none" style={[styles.item, itemStyle, tabStyle]}>
+        <View pointerEvents="none" style={[styles.item, itemStyle, isActiveStyle ? activeTabStyle : tabStyle]}>
           {icon}
           {label}
           {badge != null ? <View style={styles.badge}>{badge}</View> : null}
