@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { StyleSheet, Keyboard, I18nManager } from 'react-native';
+import { StyleSheet, TextInput, Keyboard, I18nManager } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 import Animated, { Easing } from 'react-native-reanimated';
 import memoize from './memoize';
@@ -42,9 +42,9 @@ const {
   Clock,
   Value,
   onChange,
+  and,
   abs,
   add,
-  and,
   block,
   call,
   ceil,
@@ -60,7 +60,6 @@ const {
   min,
   multiply,
   neq,
-  or,
   not,
   round,
   set,
@@ -80,9 +79,8 @@ const DIRECTION_LEFT = 1;
 const DIRECTION_RIGHT = -1;
 
 const SWIPE_DISTANCE_MINIMUM = 20;
-const SWIPE_DISTANCE_MULTIPLIER = 1 / 1.75;
 
-const SWIPE_VELOCITY_THRESHOLD_DEFAULT = 800;
+const SWIPE_VELOCITY_IMPACT = 0.2;
 
 const SPRING_CONFIG = {
   stiffness: 1000,
@@ -93,6 +91,8 @@ const SPRING_CONFIG = {
   restSpeedThreshold: 0.01,
 };
 
+const SPRING_VELOCITY_SCALE = 1;
+
 const TIMING_CONFIG = {
   duration: 200,
   easing: Easing.out(Easing.cubic),
@@ -100,15 +100,16 @@ const TIMING_CONFIG = {
 
 export default class Pager<T extends Route> extends React.Component<Props<T>> {
   static defaultProps = {
-    swipeVelocityThreshold: SWIPE_VELOCITY_THRESHOLD_DEFAULT,
+    swipeVelocityImpact: SWIPE_VELOCITY_IMPACT,
+    springVelocityScale: SPRING_VELOCITY_SCALE,
   };
 
   componentDidUpdate(prevProps: Props<T>) {
     const {
       navigationState,
       layout,
-      swipeDistanceThreshold,
-      swipeVelocityThreshold,
+      swipeVelocityImpact,
+      springVelocityScale,
       springConfig,
       timingConfig,
     } = this.props;
@@ -139,23 +140,19 @@ export default class Pager<T extends Route> extends React.Component<Props<T>> {
       this.layoutWidth.setValue(layout.width);
     }
 
-    if (swipeDistanceThreshold != null) {
-      if (prevProps.swipeDistanceThreshold !== swipeDistanceThreshold) {
-        this.swipeDistanceThreshold.setValue(swipeDistanceThreshold);
-      }
-    } else {
-      if (prevProps.layout.width !== layout.width) {
-        this.swipeDistanceThreshold.setValue(
-          layout.width * SWIPE_DISTANCE_MULTIPLIER
-        );
-      }
+    if (prevProps.swipeVelocityImpact !== swipeVelocityImpact) {
+      this.swipeVelocityImpact.setValue(
+        swipeVelocityImpact !== undefined
+          ? swipeVelocityImpact
+          : SWIPE_VELOCITY_IMPACT
+      );
     }
 
-    if (prevProps.swipeVelocityThreshold !== swipeVelocityThreshold) {
-      this.swipeVelocityThreshold.setValue(
-        swipeVelocityThreshold != null
-          ? swipeVelocityThreshold
-          : SWIPE_VELOCITY_THRESHOLD_DEFAULT
+    if (prevProps.springVelocityScale !== springVelocityScale) {
+      this.springVelocityScale.setValue(
+        springVelocityScale !== undefined
+          ? springVelocityScale
+          : SPRING_VELOCITY_SCALE
       );
     }
 
@@ -230,16 +227,29 @@ export default class Pager<T extends Route> extends React.Component<Props<T>> {
   // Remember to set it before transition needs to occur
   private isSwipeGesture: Animated.Value<Binary> = new Value(FALSE);
 
+  // Track the index value when a swipe gesture has ended
+  // This lets us know if a gesture end triggered a tab switch or not
+  private indexAtSwipeEnd: Animated.Value<number> = new Value(
+    this.props.navigationState.index
+  );
+
   // Mappings to some prop values
   // We use them in animation calculations, so we need live animated nodes
   private routesLength = new Value(this.props.navigationState.routes.length);
   private layoutWidth = new Value(this.props.layout.width);
 
-  // Threshold values to determine when to trigger a swipe gesture
-  private swipeDistanceThreshold = new Value(
-    this.props.swipeDistanceThreshold || 180
+  // Determines how relevant is a velocity while calculating next position while swiping
+  private swipeVelocityImpact = new Value(
+    this.props.swipeVelocityImpact !== undefined
+      ? this.props.swipeVelocityImpact
+      : SWIPE_VELOCITY_IMPACT
   );
-  private swipeVelocityThreshold = new Value(this.props.swipeVelocityThreshold);
+
+  private springVelocityScale = new Value(
+    this.props.springVelocityScale !== undefined
+      ? this.props.springVelocityScale
+      : SPRING_VELOCITY_SCALE
+  );
 
   // The position value represent the position of the pager on a scale of 0 - routes.length-1
   // It is calculated based on the translate value and layout width
@@ -307,6 +317,10 @@ export default class Pager<T extends Route> extends React.Component<Props<T>> {
   // It also needs to be reset right after componentDidUpdate fires
   private pendingIndexValue: number | undefined = undefined;
 
+  // Numeric id of the previously focused text input
+  // When a gesture didn't change the tab, we can restore the focused input with this
+  private previouslyFocusedTextInput: number | null = null;
+
   // Listeners for the entered screen
   private enterListeners: Listener[] = [];
 
@@ -317,7 +331,7 @@ export default class Pager<T extends Route> extends React.Component<Props<T>> {
   };
 
   private jumpTo = (key: string) => {
-    const { navigationState } = this.props;
+    const { navigationState, keyboardDismissMode, onIndexChange } = this.props;
 
     const index = navigationState.routes.findIndex(route => route.key === key);
 
@@ -327,7 +341,13 @@ export default class Pager<T extends Route> extends React.Component<Props<T>> {
     if (navigationState.index === index) {
       this.jumpToIndex(index);
     } else {
-      this.props.onIndexChange(index);
+      onIndexChange(index);
+
+      // When the index changes, the focused input will no longer be in current tab
+      // So we should dismiss the keyboard
+      if (keyboardDismissMode === 'auto') {
+        Keyboard.dismiss();
+      }
     }
   };
 
@@ -381,7 +401,6 @@ export default class Pager<T extends Route> extends React.Component<Props<T>> {
         set(state.time, 0),
         set(state.finished, FALSE),
         set(this.index, index),
-        startClock(this.clock),
       ]),
       cond(
         this.isSwipeGesture,
@@ -390,8 +409,14 @@ export default class Pager<T extends Route> extends React.Component<Props<T>> {
           cond(
             not(clockRunning(this.clock)),
             I18nManager.isRTL
-              ? set(this.initialVelocityForSpring, multiply(-1, this.velocityX))
-              : set(this.initialVelocityForSpring, this.velocityX)
+              ? set(
+                  this.initialVelocityForSpring,
+                  multiply(-1, this.velocityX, this.springVelocityScale)
+                )
+              : set(
+                  this.initialVelocityForSpring,
+                  multiply(this.velocityX, this.springVelocityScale)
+                )
           ),
           spring(
             this.clock,
@@ -406,6 +431,7 @@ export default class Pager<T extends Route> extends React.Component<Props<T>> {
           { ...TIMING_CONFIG, ...this.timingConfig, toValue }
         )
       ),
+      cond(not(clockRunning(this.clock)), startClock(this.clock)),
       cond(state.finished, [
         // Reset values
         set(this.isSwipeGesture, FALSE),
@@ -426,6 +452,11 @@ export default class Pager<T extends Route> extends React.Component<Props<T>> {
       },
     },
   ]);
+
+  private extrapolatedPosition = add(
+    this.gestureX,
+    multiply(this.velocityX, this.swipeVelocityImpact)
+  );
 
   private translateX = block([
     onChange(
@@ -471,19 +502,43 @@ export default class Pager<T extends Route> extends React.Component<Props<T>> {
       // Listen to updates for this value only when it changes
       // Without `onChange`, this will fire even if the value didn't change
       // We don't want to call the listeners if the value didn't change
-      call([this.isSwiping], ([value]: readonly Binary[]) => {
-        const { keyboardDismissMode, onSwipeStart, onSwipeEnd } = this.props;
+      call(
+        [this.isSwiping, this.indexAtSwipeEnd, this.index],
+        ([isSwiping, indexAtSwipeEnd, currentIndex]: readonly number[]) => {
+          const { keyboardDismissMode, onSwipeStart, onSwipeEnd } = this.props;
 
-        if (value === TRUE) {
-          onSwipeStart && onSwipeStart();
+          if (isSwiping === TRUE) {
+            onSwipeStart && onSwipeStart();
 
-          if (keyboardDismissMode === 'on-drag') {
-            Keyboard.dismiss();
+            if (keyboardDismissMode === 'auto') {
+              const input = TextInput.State.currentlyFocusedField();
+
+              // When a gesture begins, blur the currently focused input
+              TextInput.State.blurTextInput(input);
+
+              // Store the id of this input so we can refocus it if gesture was cancelled
+              this.previouslyFocusedTextInput = input;
+            } else if (keyboardDismissMode === 'on-drag') {
+              Keyboard.dismiss();
+            }
+          } else {
+            onSwipeEnd && onSwipeEnd();
+
+            if (keyboardDismissMode === 'auto') {
+              if (indexAtSwipeEnd === currentIndex) {
+                // The index didn't change, we should restore the focus of text input
+                const input = this.previouslyFocusedTextInput;
+
+                if (input) {
+                  TextInput.State.focusTextInput(input);
+                }
+              }
+
+              this.previouslyFocusedTextInput = null;
+            }
           }
-        } else {
-          onSwipeEnd && onSwipeEnd();
         }
-      })
+      )
     ),
     onChange(
       this.nextIndex,
@@ -518,13 +573,18 @@ export default class Pager<T extends Route> extends React.Component<Props<T>> {
       ],
       [
         set(this.isSwiping, FALSE),
+        set(this.indexAtSwipeEnd, this.index),
         this.transitionTo(
           cond(
             and(
+              // We should consider velocity and gesture distance only when a swipe ends
+              // The gestureX value will be non-zero when swipe has happened
+              // We check against a minimum distance instead of 0 because `activeOffsetX` doesn't seem to be respected on Android
+              // For other factors such as state update, the velocity and gesture distance don't matter
               greaterThan(abs(this.gestureX), SWIPE_DISTANCE_MINIMUM),
-              or(
-                greaterThan(abs(this.gestureX), this.swipeDistanceThreshold),
-                greaterThan(abs(this.velocityX), this.swipeVelocityThreshold)
+              greaterThan(
+                abs(this.extrapolatedPosition),
+                divide(this.layoutWidth, 2)
               )
             ),
             // For swipe gesture, to calculate the index, determine direction and add to index
@@ -537,24 +597,9 @@ export default class Pager<T extends Route> extends React.Component<Props<T>> {
                   sub(
                     this.index,
                     cond(
-                      greaterThan(
-                        // Gesture can be positive, or negative
-                        // Get absolute for comparision
-                        abs(this.gestureX),
-                        this.swipeDistanceThreshold
-                      ),
-                      // If gesture value exceeded the threshold, calculate direction from distance travelled
-                      cond(
-                        greaterThan(this.gestureX, 0),
-                        I18nManager.isRTL ? DIRECTION_RIGHT : DIRECTION_LEFT,
-                        I18nManager.isRTL ? DIRECTION_LEFT : DIRECTION_RIGHT
-                      ),
-                      // Otherwise calculate direction from the gesture velocity
-                      cond(
-                        greaterThan(this.velocityX, 0),
-                        I18nManager.isRTL ? DIRECTION_RIGHT : DIRECTION_LEFT,
-                        I18nManager.isRTL ? DIRECTION_LEFT : DIRECTION_RIGHT
-                      )
+                      greaterThan(this.extrapolatedPosition, 0),
+                      I18nManager.isRTL ? DIRECTION_RIGHT : DIRECTION_LEFT,
+                      I18nManager.isRTL ? DIRECTION_LEFT : DIRECTION_RIGHT
                     )
                   )
                 ),

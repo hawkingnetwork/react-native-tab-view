@@ -30,17 +30,50 @@ Open a Terminal in the project root and run:
 yarn add react-native-tab-view
 ```
 
-If you are using Expo, you are done. Otherwise, continue to the next step.
+Now we need to install [`react-native-gesture-handler`](https://github.com/kmagiera/react-native-gesture-handler) and [`react-native-reanimated`](https://github.com/kmagiera/react-native-reanimated).
 
-Install and link [`react-native-gesture-handler`](https://github.com/kmagiera/react-native-gesture-handler) and [`react-native-reanimated`](https://github.com/kmagiera/react-native-reanimated). To install and link them, run:
+If you are using Expo, to ensure that you get the compatible versions of the libraries, run:
+
+```sh
+expo install react-native-gesture-handler react-native-reanimated
+```
+
+If you are not using Expo, run the following:
 
 ```sh
 yarn add react-native-reanimated react-native-gesture-handler
-react-native link react-native-reanimated
-react-native link react-native-gesture-handler
 ```
 
-**IMPORTANT:** There are additional steps required for `react-native-gesture-handler` on Android after running `react-native link react-native-gesture-handler`. Check the [this guide](https://kmagiera.github.io/react-native-gesture-handler/docs/getting-started.html) to complete the installation.
+If you are using Expo, you are done. Otherwise, continue to the next steps.
+
+Next, we need to link these libraries. The steps depends on your React Native version:
+
+- **React Native 0.60 and higher**
+
+  On newer versions of React Native, [linking is automatic](https://github.com/react-native-community/cli/blob/master/docs/autolinking.md).
+
+  To complete the linking on iOS, make sure you have [Cocoapods](https://cocoapods.org/) installed. Then run:
+
+  ```sh
+  cd ios
+  pod install
+  cd ..
+  ```
+
+- **React Native 0.59 and lower**
+
+  If you're on an older React Native version, you need to manually link the dependencies. To do that, run:
+
+  ```sh
+  react-native link react-native-reanimated
+  react-native link react-native-gesture-handler
+  ```
+
+**IMPORTANT:** There are additional steps required for `react-native-gesture-handler` on Android after linking (for all React Native versions). Check the [this guide](https://kmagiera.github.io/react-native-gesture-handler/docs/getting-started.html) to complete the installation.
+
+**NOTE:** If you use Wix [`react-native-navigation`](https://github.com/wix/react-native-navigation) on Android, you need to wrap all your screens that uses `react-native-tab-view` with `gestureHandlerRootHOC` from `react-native-gesture-handler`. Refer [`react-native-gesture-handler`'s docs](https://kmagiera.github.io/react-native-gesture-handler/docs/getting-started.html#with-wix-react-native-navigation-https-githubcom-wix-react-native-navigation) for more details.
+
+We're done! Now you can build and run the app on your device/simulator.
 
 ## Quick Start
 
@@ -280,20 +313,17 @@ Boolean indicating whether to remove invisible views (such as unfocused screens)
 
 String indicating whether the keyboard gets dismissed in response to a drag gesture. Possible values are:
 
-- `'on-drag'` (default): the keyboard is dismissed when a drag begins.
+- `'auto'` (default): the keyboard is dismissed when the index changes.
+- `'on-drag'`: the keyboard is dismissed when a drag begins.
 - `'none'`: drags do not dismiss the keyboard.
 
 ##### `swipeEnabled`
 
 Boolean indicating whether to enable swipe gestures. Swipe gestures are enabled by default. Passing `false` will disable swipe gestures, but the user can still switch tabs by pressing the tab bar.
 
-##### `swipeDistanceThreshold`
+##### `swipeVelocityImpact`
 
-Minimum swipe distance which triggers a tab switch. By default, this is automatically determined based on the screen width.
-
-##### `swipeVelocityThreshold`
-
-Minimum swipe velocity which triggers a tab switch. Defaults to `1200`.
+Determines how relevant is a velocity while calculating next position while swiping. Defaults to `0.2`.
 
 ##### `onSwipeStart`
 
@@ -319,7 +349,11 @@ Configuration object for the spring animation which occurs after swiping. Suppor
 - `restSpeedThreshold` (`number`)
 - `restDisplacementThreshold` (`number`)
 
-##### `initialLayout`
+##### `springVelocityScale`
+
+Number for determining how meaningful is gesture velocity for calculating initial velocity of spring animation. Defaults to `0`.
+
+##### `initialLayout
 
 Object containing the initial height and width of the screens. Passing this will improve the initial rendering performance. For most apps, this is a good default:
 
@@ -453,6 +487,18 @@ Function which takes an object with the current route and returns a custom React
 
 Function to execute on tab press. It receives the scene for the pressed tab, useful for things like scroll to top.
 
+By default, tab press also switches the tab. To prevent this behavior, you can call `preventDefault`:
+
+```js
+onTabPress={({ route, preventDefault }) => {
+  if (route.key === 'home') {
+    preventDefault();
+
+    // Do something else
+  }
+}}
+```
+
 ##### `onTabLongPress`
 
 Function to execute on tab long press, use for things like showing a menu with more options
@@ -477,6 +523,8 @@ Opacity for pressed tab (iOS and Android < 5.0 only).
 
 Boolean indicating whether to enable scrollable tabs.
 
+If you set `scrollEnabled` to `true`, you should also specify a `width` in `tabStyle` to improve the initial render.
+
 ##### `bounces`
 
 Boolean indicating whether the tab bar bounces when scrolling.
@@ -485,9 +533,15 @@ Boolean indicating whether the tab bar bounces when scrolling.
 
 Style to apply to the individual tab items in the tab bar.
 
+By default, all tab items take up the same pre-calculated width based on the width of the container. If you want them to take their original width, you can specify `width: 'auto'` in `tabStyle`.
+
 ##### `indicatorStyle`
 
 Style to apply to the active indicator.
+
+##### `indicatorContainerStyle`
+
+Style to apply to the container view for the indicator.
 
 ##### `labelStyle`
 

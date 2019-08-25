@@ -9,6 +9,11 @@ export type Route = {
   testID?: string;
 };
 
+export type Event = {
+  defaultPrevented: boolean;
+  preventDefault(): void;
+};
+
 export type Scene<T extends Route> = {
   route: T;
 };
@@ -37,12 +42,12 @@ export type EventEmitterProps = {
 };
 
 export type PagerCommonProps = {
-  keyboardDismissMode: 'none' | 'on-drag';
+  keyboardDismissMode: 'none' | 'on-drag' | 'auto';
   swipeEnabled: boolean;
-  swipeDistanceThreshold?: number;
-  swipeVelocityThreshold?: number;
+  swipeVelocityImpact?: number;
   onSwipeStart?: () => void;
   onSwipeEnd?: () => void;
+  springVelocityScale?: number;
   springConfig: {
     damping?: number;
     mass?: number;

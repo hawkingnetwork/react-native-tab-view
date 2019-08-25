@@ -20,9 +20,7 @@ jobs:
           keys:
             - v1-dependencies-example-{{ checksum "example/package.json" }}
             - v1-dependencies-example-
-      - run: |
-          yarn install
-          yarn install --cwd example
+      - run: yarn bootstrap
       - save_cache:
           key: v1-dependencies-{{ checksum "package.json" }}
           paths: node_modules
@@ -38,8 +36,8 @@ jobs:
         - attach_workspace:
             at: ~/project
         - run: |
-            yarn run lint
-            yarn run typescript
+            yarn lint
+            yarn typescript
   unit-tests:
       <<: *defaults
       steps:

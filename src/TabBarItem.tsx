@@ -3,6 +3,7 @@ import {
   StyleSheet,
   View,
   StyleProp,
+  LayoutChangeEvent,
   TextStyle,
   ViewStyle,
 } from 'react-native';
@@ -15,7 +16,6 @@ type Props<T extends Route> = {
   position: Animated.Node<number>;
   route: T;
   navigationState: NavigationState<T>;
-  scrollEnabled?: boolean;
   activeColor?: string;
   inactiveColor?: string;
   pressColor?: string;
@@ -35,9 +35,9 @@ type Props<T extends Route> = {
     color: string;
   }) => React.ReactNode;
   renderBadge?: (scene: Scene<T>) => React.ReactNode;
+  onLayout?: (event: LayoutChangeEvent) => void;
   onPress: () => void;
   onLongPress: () => void;
-  tabWidth: number;
   labelStyle?: StyleProp<TextStyle>;
   activeTabStyle?: any;
   style: StyleProp<ViewStyle>;
@@ -82,7 +82,6 @@ export default class TabBarItem<T extends Route> extends React.Component<
       route,
       position,
       navigationState,
-      scrollEnabled,
       renderLabel: renderLabelPassed,
       renderIcon,
       renderBadge,
@@ -97,7 +96,7 @@ export default class TabBarItem<T extends Route> extends React.Component<
       labelStyle,
       activeTabStyle = {},
       style,
-      tabWidth,
+      onLayout,
       onPress,
       onLongPress,
     } = this.props;
@@ -199,23 +198,15 @@ export default class TabBarItem<T extends Route> extends React.Component<
     }
 
     const tabStyle = StyleSheet.flatten(style);
-    const isWidthSet =
-      (tabStyle && typeof tabStyle.width !== 'undefined') ||
-      scrollEnabled === true;
-
-    const tabContainerStyle: ViewStyle = {};
-    const itemStyle = isWidthSet ? { width: tabWidth } : null;
-
+    const isWidthSet = tabStyle && tabStyle.width !== undefined;
+    const tabContainerStyle: ViewStyle | null = isWidthSet ? null : { flex: 1 };
     const isActiveStyle = isFocused && activeTabStyle != null;
 
-    if (tabStyle && typeof tabStyle.flex === 'number') {
-      tabContainerStyle.flex = isActiveStyle
-        ? activeTabStyle.flex
-        : tabStyle.flex;
-    } else if (!isWidthSet) {
-      tabContainerStyle.flex = 1;
-    }
-
+    // if (tabStyle && typeof tabStyle.flex === 'number') {
+    //   tabContainerStyle.flex = isActiveStyle ? activeTabStyle.flex : tabStyle.flex;
+    // } else if (!isWidthSet) {
+    //   tabContainerStyle.flex = 1;
+    // }
     const scene = { route };
 
     let accessibilityLabel = getAccessibilityLabel(scene);
@@ -240,18 +231,14 @@ export default class TabBarItem<T extends Route> extends React.Component<
         pressColor={pressColor}
         pressOpacity={pressOpacity}
         delayPressIn={0}
+        onLayout={onLayout}
         onPress={onPress}
         onLongPress={onLongPress}
         style={tabContainerStyle}
       >
         <View
           pointerEvents="none"
-          style={[
-            styles.item,
-            itemStyle,
-            tabStyle,
-            isActiveStyle ? activeTabStyle : {},
-          ]}
+          style={[styles.item, tabStyle, isActiveStyle ? activeTabStyle : {}]}
         >
           {icon}
           {label}

@@ -58,7 +58,7 @@ export default class TabView<T extends Route> extends React.Component<
       <TabBar {...props} />
     ),
     renderLazyPlaceholder: () => null,
-    keyboardDismissMode: 'on-drag',
+    keyboardDismissMode: 'auto',
     swipeEnabled: true,
     lazy: false,
     lazyPreloadDistance: 0,
@@ -107,8 +107,7 @@ export default class TabView<T extends Route> extends React.Component<
       removeClippedSubviews,
       keyboardDismissMode,
       swipeEnabled,
-      swipeDistanceThreshold,
-      swipeVelocityThreshold,
+      swipeVelocityImpact,
       timingConfig,
       springConfig,
       tabBarPosition,
@@ -118,6 +117,7 @@ export default class TabView<T extends Route> extends React.Component<
       sceneContainerStyle,
       style,
       gestureHandlerProps,
+      springVelocityScale,
     } = this.props;
     const { layout } = this.state;
 
@@ -128,13 +128,13 @@ export default class TabView<T extends Route> extends React.Component<
           layout={layout}
           keyboardDismissMode={keyboardDismissMode}
           swipeEnabled={swipeEnabled}
-          swipeDistanceThreshold={swipeDistanceThreshold}
-          swipeVelocityThreshold={swipeVelocityThreshold}
+          swipeVelocityImpact={swipeVelocityImpact}
           timingConfig={timingConfig}
           springConfig={springConfig}
           onSwipeStart={onSwipeStart}
           onSwipeEnd={onSwipeEnd}
           onIndexChange={this.jumpToIndex}
+          springVelocityScale={springVelocityScale}
           removeClippedSubviews={removeClippedSubviews}
           gestureHandlerProps={gestureHandlerProps}
         >
