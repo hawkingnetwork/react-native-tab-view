@@ -1,7 +1,8 @@
 {
   "git": {
     "commitMessage": "chore: release %s",
-    "tagName": "v%s"
+    "tagName": "v%s",
+    "commitArgs": "--no-verify"
   },
   "npm": {
     "publish": true
